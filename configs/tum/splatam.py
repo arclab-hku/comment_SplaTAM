@@ -49,16 +49,16 @@ config = dict(
         eval_save_qual=True,
     ),
     data=dict(
-        basedir="./data/TUM_RGBD",
-        gradslam_data_cfg=f"./configs/data/TUM/{scene_name}.yaml",
-        sequence=f"rgbd_dataset_{scene_name}",
+        basedir="./data/TUM_RGBD", #指定了数据的基础目录路径
+        gradslam_data_cfg=f"./configs/data/TUM/{scene_name}.yaml", #存放了相机的内参
+        sequence=f"rgbd_dataset_{scene_name}", #序列的名称
         desired_image_height=480,
         desired_image_width=640,
-        start=0,
-        end=-1,
-        stride=1,
+        start=0, #指定了序列的起始帧，这里是0。
+        end=-1, #指定了序列的结束帧，这里是-1，表示直到最后一帧。
+        stride=1, #指定了帧的步长，这里是1，表示按照顺序逐帧。
         num_frames=-1,
-    ),
+    ), #初始化了一个py字典，其中包含了一些键值对。
     tracking=dict(
         use_gt_poses=False, # Use GT Poses for Tracking
         forward_prop=True, # Forward Propagate Poses

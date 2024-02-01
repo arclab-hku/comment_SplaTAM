@@ -562,13 +562,13 @@ def rgbd_slam(config: dict):
     device = torch.device(config["primary_device"])
 
     # Load Dataset
-    print("Loading Dataset ...")
-    dataset_config = config["data"]
+    print("Loading Dataset ...") #输入数据
+    dataset_config = config["data"] #读入config中的数据路径
     if "gradslam_data_cfg" not in dataset_config:
         gradslam_data_cfg = {}
         gradslam_data_cfg["dataset_name"] = dataset_config["dataset_name"]
     else:
-        gradslam_data_cfg = load_dataset_config(dataset_config["gradslam_data_cfg"])
+        gradslam_data_cfg = load_dataset_config(dataset_config["gradslam_data_cfg"]) #内参
     if "ignore_bad" not in dataset_config:
         dataset_config["ignore_bad"] = False
     if "use_train_split" not in dataset_config:
@@ -607,7 +607,7 @@ def rgbd_slam(config: dict):
         relative_pose=True,
         ignore_bad=dataset_config["ignore_bad"],
         use_train_split=dataset_config["use_train_split"],
-    )
+    ) #定义一个类，这个类为数据集的内容？（是一个数据集对象）
     num_frames = dataset_config["num_frames"]
     if num_frames == -1:
         num_frames = len(dataset)
