@@ -135,7 +135,7 @@ def get_pointcloud(color, depth, intrinsics, w2c, transform_pts=True,
     # Colorize point cloud
     # 将点云与颜色信息结合，形成彩色的点云。
     cols = torch.permute(color, (1, 2, 0)).reshape(-1, 3) # (C, H, W) -> (H, W, C) -> (H * W, C)
-    point_cld = torch.cat((pts, cols), -1)
+    point_cld = torch.cat((pts, cols), -1) #是一个张量（tensor），包含了彩色的点云数据。它的格式是一个二维张量，形状为 (N, 6)，其中 N 是点云中点的数量。每一行代表一个点，包含了点的三维坐标（x、y、z）以及颜色信息（R、G、B）
 
     # Select points based on mask
     # 如果提供了掩码 mask，则基于掩码选择特定的点
