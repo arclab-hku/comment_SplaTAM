@@ -1130,24 +1130,24 @@ def rgbd_slam(config: dict):
         wandb.finish()
 
 if __name__ == "__main__": # 表示以下的代码块将在脚本作为主程序运行时执行，而不是被导入到其他模块中时执行。
-    parser = argparse.ArgumentParser() #创建一个命令行解析器，该解析器将帮助您从命令行接收参数。
+    parser = argparse.ArgumentParser() #创建一个命令行解析器，该解析器将从命令行接收参数。
 
     parser.add_argument("experiment", type=str, help="Path to experiment file") #添加一个名为 "experiment" 的命令行参数，它是一个字符串类型，用于指定实验文件的路径。(对应就是config文件内的)
 
     args = parser.parse_args() #解析命令行参数，将其存储在 args 变量中。
 
-    #使用 SourceFileLoader 加载指定路径的实验文件，并将其作为模块加载到 experiment 变量中。
+    #使用 SourceFileLoader 加载指定路径的实验文件（也就是config），并将其作为模块加载到 experiment 变量中。
     experiment = SourceFileLoader(
         os.path.basename(args.experiment), args.experiment
     ).load_module()
 
     # Set Experiment Seed
-    seed_everything(seed=experiment.config['seed']) #设置实验的随机数种子，种子值来自实验配置文件中的 'seed' 字段。
+    seed_everything(seed=experiment.config['seed']) #设置实验的随机数种子，种子值来自实验配置文件中的 'seed'（应该是0） 字段。
     
     # Create Results Directory and Copy Config
     # 创建结果目录并复制配置文件：
     results_dir = os.path.join(
-        experiment.config["workdir"], experiment.config["run_name"] #存储了实验结果的目录路径，由实验配置文件中的 "workdir" 和 "run_name" 字段组成。
+        experiment.config["workdir"], experiment.config["run_name"] #存储了实验结果的目录路径，由实验配置文件中的 "workdir" 和 "run_name(序列名字+seed)" 字段组成。
     )
     if not experiment.config['load_checkpoint']: #检查是否需要加载检查点，如果不需要，则执行以下操作：
         os.makedirs(results_dir, exist_ok=True)
