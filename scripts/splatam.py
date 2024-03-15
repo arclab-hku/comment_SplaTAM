@@ -531,24 +531,24 @@ def convert_params_to_store(params):
             params_to_store[k] = v
     return params_to_store
 
-
+# 主要运行tracking和mapping的函数
 def rgbd_slam(config: dict):
     # Print Config
     print("Loaded Config:")
-    if "use_depth_loss_thres" not in config['tracking']:
+    if "use_depth_loss_thres" not in config['tracking']: #如果没有设置use_depth_loss_thres，则默认为False(如果添加了，需要增加参数depth_loss_thres)
         config['tracking']['use_depth_loss_thres'] = False
         config['tracking']['depth_loss_thres'] = 100000
-    if "visualize_tracking_loss" not in config['tracking']:
+    if "visualize_tracking_loss" not in config['tracking']: #可视化跟踪损失
         config['tracking']['visualize_tracking_loss'] = False
     print(f"{config}")
 
-    # Create Output Directories
+    # Create Output Directories（创建输出的路径）
     output_dir = os.path.join(config["workdir"], config["run_name"])
     eval_dir = os.path.join(output_dir, "eval")
     os.makedirs(eval_dir, exist_ok=True)
     
     # Init WandB
-    if config['use_wandb']:
+    if config['use_wandb']: #wandb是自动记录模型训练过程中的超参数和输出指标
         wandb_time_step = 0
         wandb_tracking_step = 0
         wandb_mapping_step = 0
@@ -558,10 +558,10 @@ def rgbd_slam(config: dict):
                                name=config['wandb']['name'],
                                config=config)
 
-    # Get Device
+    # Get Device（此处设定用哪个GPU）
     device = torch.device(config["primary_device"])
 
-    # Load Dataset
+    # Load Dataset（读入数据的系列参数~）
     print("Loading Dataset ...") #输入数据
     dataset_config = config["data"] #读入config中的数据路径
     if "gradslam_data_cfg" not in dataset_config:

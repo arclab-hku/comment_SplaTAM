@@ -1,7 +1,7 @@
 import os
 from os.path import join as p_join
 
-primary_device = "cuda:0"
+primary_device = "cuda:0" #用第一个GPU
 
 scenes = ["freiburg1_desk", "freiburg1_desk2", "freiburg1_room", "freiburg2_xyz", "freiburg3_long_office_household"]
 
@@ -66,6 +66,12 @@ config = dict(
         use_sil_for_loss=True,
         sil_thres=0.99,
         use_l1=True,
+
+        # 新增参数
+        use_depth_loss_thres=True, # Use Depth Loss Threshold for Tracking（新添加的测试一下效果看看）
+        depth_loss_thres=20000, # Num of Tracking Iters becomes twice if this value is not met
+        # 新增参数
+        
         ignore_outlier_depth_loss=False,
         use_uncertainty_for_loss_mask=False,
         use_uncertainty_for_loss=False,
