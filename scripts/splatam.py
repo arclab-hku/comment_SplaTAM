@@ -663,8 +663,8 @@ def rgbd_slam(config: dict):
                                     tracking_intrinsics.cpu().numpy(), first_frame_w2c.detach().cpu().numpy())
     
     # Initialize list to keep track of Keyframes
-    keyframe_list = []
-    keyframe_time_indices = []
+    keyframe_list = [] #用于存放关键帧的列表
+    keyframe_time_indices = [] #用于存放关键帧的时间索引
     
     # Init Variables to keep track of ground truth poses and runtimes
     gt_w2c_all_frames = []
@@ -677,7 +677,7 @@ def rgbd_slam(config: dict):
     mapping_frame_time_sum = 0
     mapping_frame_time_count = 0
 
-    # Load Checkpoint
+    # Load Checkpoint（加载一些checkpoint）
     if config['load_checkpoint']:
         checkpoint_time_idx = config['checkpoint_time_idx']
         print(f"Loading Checkpoint for Frame {checkpoint_time_idx}")
@@ -720,22 +720,23 @@ def rgbd_slam(config: dict):
         # Load RGBD frames incrementally instead of all frames
         color, depth, _, gt_pose = dataset[time_idx] #从数据集 dataset 中加载 RGB-D 帧的颜色、深度、姿态等信息。
         # Process poses
-        gt_w2c = torch.linalg.inv(gt_pose)#对姿态信息进行处理，计算pose的逆，也就是世界到相机的变换矩阵 gt_w2c。
+        gt_w2c = torch.linalg.inv(gt_pose)#对姿态信息进行处理，计算pose的逆，也就是相机到世界坐标系的变换矩阵 gt_w2c。
         
         # Process RGB-D Data
         # 使用了PyTorch中的permute函数，将颜色数据的维度进行重新排列。
         # 在这里，color是一个张量（tensor），通过permute(2, 0, 1)操作，将原始颜色数据的维度顺序从 (height, width, channels) 调整为 (channels, height, width)。
         color = color.permute(2, 0, 1) / 255 #将颜色归一化，归一化到0~1范围
-        depth = depth.permute(2, 0, 1)
+        depth = depth.permute(2, 0, 1) #将 depth 张量的维度重新排列为 (2, 0, 1)，即原来的第三个维度（索引为2）移动到第一位，原来的第一个维度（索引为0）移动到第二位，原来的第二个维度（索引为1）移动到第三位。这样就对张量进行了维度的转置。
+        # 这大概就是在pytorch中常常需要将输入的图像张量的维度从 (height, width, channels) 转换为 (channels, height, width) 的形式，以适应输入要求。
 
         # 将当前帧的pose gt_w2c 添加到列表 gt_w2c_all_frames 中。
         gt_w2c_all_frames.append(gt_w2c)
-        curr_gt_w2c = gt_w2c_all_frames
+        curr_gt_w2c = gt_w2c_all_frames #存放所有的gt pose
         # Optimize only current time step for tracking
         iter_time_idx = time_idx
 
         # Initialize Mapping Data for selected frame
-        # 初始化当前帧的数据 curr_data 包括相机参数、颜色数据、深度数据等。
+        # 初始化当前帧的数据 curr_data 包括相机参数、颜色数据、深度数据、时间索引、相机内参、第一帧的pose、全部的gt pose等。
         curr_data = {'cam': cam, 'im': color, 'depth': depth, 'id': iter_time_idx, 'intrinsics': intrinsics, 
                      'w2c': first_frame_w2c, 'iter_gt_w2c_list': curr_gt_w2c}
         
@@ -750,7 +751,7 @@ def rgbd_slam(config: dict):
             tracking_curr_data = curr_data #初始化跟踪数据
 
         # Optimization Iterations（设置建图迭代次数）
-        num_iters_mapping = config['mapping']['num_iters']
+        num_iters_mapping = config['mapping']['num_iters'] #tum中的设置与tracking一样都为200代。
         
         # Initialize the camera pose for the current frame
         if time_idx > 0: #如果当前帧索引大于 0，则初始化相机姿态参数。
