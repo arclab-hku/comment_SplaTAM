@@ -580,7 +580,7 @@ def rgbd_slam(config: dict):
     else:
         if dataset_config["densification_image_height"] != dataset_config["desired_image_height"] or \
             dataset_config["densification_image_width"] != dataset_config["desired_image_width"]:
-            seperate_densification_res = True
+            seperate_densification_res = True #如果分辨率不一样，则需要分开处理，否则不需要
         else:
             seperate_densification_res = False
     if "tracking_image_height" not in dataset_config:
@@ -613,7 +613,7 @@ def rgbd_slam(config: dict):
         num_frames = len(dataset)
 
     # Init seperate dataloader for densification if required
-    if seperate_densification_res:
+    if seperate_densification_res: #如果致密化分辨率不一样，那就要额外获取致密化的数据集？？？
         densify_dataset = get_dataset(
             config_dict=gradslam_data_cfg,
             basedir=dataset_config["basedir"],
