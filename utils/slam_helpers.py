@@ -169,31 +169,37 @@ def transformed_params2silhouette(params, transformed_pts):
     }
     return rendervar
 
-
+# 计算每个高斯分布的深度和轮廓
 def get_depth_and_silhouette(pts_3D, w2c):
     """
     Function to compute depth and silhouette for each gaussian.
     These are evaluated at gaussian center.
     """
-    # Depth of each gaussian center in camera frame
-    pts4 = torch.cat((pts_3D, torch.ones_like(pts_3D[:, :1])), dim=-1)
-    pts_in_cam = (w2c @ pts4.transpose(0, 1)).transpose(0, 1)
+    # Depth of each gaussian center in camera frame（计算高斯分布中心点在相机坐标系下的深度，并计算深度的平方值。）
+    pts4 = torch.cat((pts_3D, torch.ones_like(pts_3D[:, :1])), dim=-1) #将 pts_3D 与一个全为1的列拼接，以便进行仿射变换，得到形状为 (num_gaussians, 4) 的张量 pts4。
+    pts_in_cam = (w2c @ pts4.transpose(0, 1)).transpose(0, 1) #获取高斯分布中心点在相机坐标系下的坐标
+    # 从 pts_in_cam 中提取了每个高斯分布中心点的 Z 轴坐标，即深度值。最终得到的张量的形状为 (num_gaussians, 1)，其中 num_gaussians 表示高斯分布的数量。
     depth_z = pts_in_cam[:, 2].unsqueeze(-1) # [num_gaussians, 1]
+    # 将 depth_z 中每个元素进行平方操作，得到了深度值的平方。得到的张量的形状与 depth_z 相同，为 (num_gaussians, 1)。
     depth_z_sq = torch.square(depth_z) # [num_gaussians, 1]
 
     # Depth and Silhouette
+    # 创建了一个形状为 (pts_3D.shape[0], 3) 的全零张量，并将其转移到 GPU 上并设置为浮点数类型。pts_3D.shape[0] 表示 pts_3D 张量的第一个维度的大小，通常是点的数量。
     depth_silhouette = torch.zeros((pts_3D.shape[0], 3)).cuda().float()
-    depth_silhouette[:, 0] = depth_z.squeeze(-1)
-    depth_silhouette[:, 1] = 1.0
-    depth_silhouette[:, 2] = depth_z_sq.squeeze(-1)
+    # depth_z 中存储了每个高斯分布中心点在相机坐标系下的 Z 轴坐标（深度值）。
+    # depth_z_sq 中存储了 depth_z 中每个深度值的平方。
+    # 通过 squeeze(-1) 操作将形状为 (num_gaussians, 1) 的张量转换为形状为 (num_gaussians,) 的一维张量。
+    depth_silhouette[:, 0] = depth_z.squeeze(-1) #（depth_z填充到 depth_silhouette 张量的第一列中。）
+    depth_silhouette[:, 1] = 1.0 # 将 depth_silhouette 张量的第二列填充为 1.0，
+    depth_silhouette[:, 2] = depth_z_sq.squeeze(-1) #depth_z_sq 中的深度值的平方填充到 depth_silhouette 张量的第三列中。
     
-    return depth_silhouette
+    return depth_silhouette #所谓的深度轮廓其实就是相机坐标系下的（深度值，1，深度的平方）
 
 
 def params2depthplussilhouette(params, w2c):
     rendervar = {
         'means3D': params['means3D'],
-        'colors_precomp': get_depth_and_silhouette(params['means3D'], w2c),
+        'colors_precomp': get_depth_and_silhouette(params['means3D'], w2c), #计算每个高斯分布的深度和轮廓（#所谓的深度轮廓其实就是相机坐标系下的（深度值，1，深度的平方））
         'rotations': F.normalize(params['unnorm_rotations']),
         'opacities': torch.sigmoid(params['logit_opacities']),
         'scales': torch.exp(torch.tile(params['log_scales'], (1, 3))),
@@ -201,32 +207,40 @@ def params2depthplussilhouette(params, w2c):
     }
     return rendervar
 
-
+# 获取渲染的变量
 def transformed_params2depthplussilhouette(params, w2c, transformed_pts):
     rendervar = {
-        'means3D': transformed_pts,
-        'colors_precomp': get_depth_and_silhouette(transformed_pts, w2c),
-        'rotations': F.normalize(params['unnorm_rotations']),
-        'opacities': torch.sigmoid(params['logit_opacities']),
-        'scales': torch.exp(torch.tile(params['log_scales'], (1, 3))),
-        'means2D': torch.zeros_like(params['means3D'], requires_grad=True, device="cuda") + 0
+        'means3D': transformed_pts, #在相机坐标系下的高斯中心点
+        'colors_precomp': get_depth_and_silhouette(transformed_pts, w2c), #计算每个高斯分布的深度和轮廓（#所谓的深度轮廓其实就是相机坐标系下的（深度值，1，深度的平方））
+        'rotations': F.normalize(params['unnorm_rotations']), #归一化旋转
+        'opacities': torch.sigmoid(params['logit_opacities']), #高斯分布的不透明度，经过 sigmoid 函数处理
+        'scales': torch.exp(torch.tile(params['log_scales'], (1, 3))), #高斯分布的尺度，经过 exp 函数处理
+        'means2D': torch.zeros_like(params['means3D'], requires_grad=True, device="cuda") + 0 #在图像坐标系下的高斯中心点，初始化为0
     }
     return rendervar
 
 
 # 这个函数的目的是将各向同性高斯分布的中心点从世界坐标系转换到相机坐标系中。
+    # 注意，此处的params（如下定义，实际上就是高斯函数）
+    # params = {
+    #     'means3D': means3D,
+    #     'rgb_colors': init_pt_cld[:, 3:6],
+    #     'unnorm_rotations': unnorm_rots,
+    #     'logit_opacities': logit_opacities,
+    #     'log_scales': torch.tile(torch.log(torch.sqrt(mean3_sq_dist))[..., None], (1, 1)),
+    # }
 def transform_to_frame(params, time_idx, gaussians_grad, camera_grad):
     """
     Function to transform Isotropic Gaussians from world frame to camera frame.
     
     Args:
-        params: dict of parameters 一个包含各种参数的字典
+        params: dict of parameters 一个包含各种参数的字典（实际上就是3D高斯函数的所有参数，同时也包含pose等）
         time_idx: time index to transform to 表示时间索引，用于指定转换到哪一帧。
         gaussians_grad: enable gradients for Gaussians  一个布尔值，表示是否启用高斯分布的梯度。
         camera_grad: enable gradients for camera pose 一个布尔值，表示是否启用相机位姿的梯度。
     
     Returns:
-        transformed_pts: Transformed Centers of Gaussians #返回的高斯中心点的变换
+        transformed_pts: Transformed Centers of Gaussians #返回的在相机坐标系下的高斯中心点
     """
     # Get Frame Camera Pose 获取相机位姿：
     if camera_grad: #如果 camera_grad 为 True，则获取未归一化的相机旋转 cam_rot 和相机平移 cam_tran
@@ -236,11 +250,12 @@ def transform_to_frame(params, time_idx, gaussians_grad, camera_grad):
         cam_rot = F.normalize(params['cam_unnorm_rots'][..., time_idx].detach())
         cam_tran = params['cam_trans'][..., time_idx].detach()
     # 构建相机到世界坐标系的变换矩阵 rel_w2c，其中包含旋转矩阵和平移向量。
-    rel_w2c = torch.eye(4).cuda().float()
+    rel_w2c = torch.eye(4).cuda().float() #构建一个形状为 (4, 4) 的单位矩阵 rel_w2c。（先初始化为单位矩阵）
     rel_w2c[:3, :3] = build_rotation(cam_rot)
     rel_w2c[:3, 3] = cam_tran
 
     # Get Centers and norm Rots of Gaussians in World Frame 获取世界坐标系下高斯分布中心和归一化旋转：
+    # 获取高斯分布的中心点 pts，如果 gaussians_grad 为 True，则获取高斯分布的中心点 pts(不使用 .detach()，所以 pts 是原始张量，它可能是需要计算梯度的。)
     if gaussians_grad: #如果 gaussians_grad 为 True，则获取高斯分布的中心点 pts(不使用 .detach()，所以 pts 是原始张量，它可能是需要计算梯度的。)
         pts = params['means3D']
     else:#。否则，使用 .detach() 方法获取其副本(通过使用 .detach() 方法，确保返回的张量是不需要计算梯度的。这可以防止梯度在这个张量上进行传播。)。

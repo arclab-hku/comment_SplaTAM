@@ -98,7 +98,7 @@ def get_pointcloud(color, depth, intrinsics, w2c, transform_pts=True,
     # Compute indices of pixels
     # 计算像素坐标和深度信息：
 
-    # 利用网格生成像素坐标 xx 和 yy。
+    # 利用网格生成像素坐标 xx 和 yy。（根据内参，转换到像素坐标）
     x_grid, y_grid = torch.meshgrid(torch.arange(width).cuda().float(), 
                                     torch.arange(height).cuda().float(),
                                     indexing='xy')
@@ -127,8 +127,8 @@ def get_pointcloud(color, depth, intrinsics, w2c, transform_pts=True,
     if compute_mean_sq_dist:
         if mean_sq_dist_method == "projective":
             # Projective Geometry (this is fast, farther -> larger radius)
-            scale_gaussian = depth_z / ((FX + FY)/2)
-            mean3_sq_dist = scale_gaussian**2
+            scale_gaussian = depth_z / ((FX + FY)/2) #计算尺度参数 scale_gaussian
+            mean3_sq_dist = scale_gaussian**2 #尺度参数的平方
         else:
             raise ValueError(f"Unknown mean_sq_dist_method {mean_sq_dist_method}")
     
@@ -140,7 +140,7 @@ def get_pointcloud(color, depth, intrinsics, w2c, transform_pts=True,
     # Select points based on mask
     # 如果提供了掩码 mask，则基于掩码选择特定的点
     if mask is not None:
-        point_cld = point_cld[mask]
+        point_cld = point_cld[mask] #mask为true的点保留，false的点删除，而mask为true就是当前需要生成的点云
         if compute_mean_sq_dist:
             mean3_sq_dist = mean3_sq_dist[mask]
 
@@ -288,7 +288,10 @@ def get_loss(params, curr_data, variables, iter_time_idx, loss_weights, use_sil_
 
     # Initialize Render Variables (初始化一些渲染的变量)
     #将输入的参数 params 转换成一个包含渲染相关变量的字典 rendervar与depth_sil_rendervar
+    # 下面两行代码用于获取渲染rgb渲染量以及深度渲染量
+    # 其中主要获得的colors_precomp是颜色。
     rendervar = transformed_params2rendervar(params, transformed_pts)
+    # 其中主要获得的colors_precomp是计算每个高斯分布的深度和轮廓（#所谓的深度轮廓其实就是相机坐标系下的（深度值，1，深度的平方））
     depth_sil_rendervar = transformed_params2depthplussilhouette(params, curr_data['w2c'],
                                                                  transformed_pts)
 
@@ -432,12 +435,23 @@ def initialize_new_params(new_pt_cld, mean3_sq_dist):
     return params #返回初始化后的高斯分布参数字典。
 
 
-# 现了在建图过程中根据当前帧的数据进行高斯分布的密集化，
+# 在建图过程中根据当前帧的数据进行高斯分布的密集化，
 def add_new_gaussians(params, variables, curr_data, sil_thres, time_idx, mean_sq_dist_method):
-    # Silhouette Rendering
-    transformed_pts = transform_to_frame(params, time_idx, gaussians_grad=False, camera_grad=False)#将高斯模型转换到frame坐标系下
+    # Silhouette Rendering（轮廓渲染）
+    transformed_pts = transform_to_frame(params, time_idx, gaussians_grad=False, camera_grad=False)#将高斯模型转换到frame坐标系下（返回的transformed_pts就是在相机坐标系下的高斯中心点）
+    # 注意，此处的params（如下定义，实际上就是高斯函数，同时也包含pose等）
+    # params = {
+    #     'means3D': means3D,
+    #     'rgb_colors': init_pt_cld[:, 3:6],
+    #     'unnorm_rotations': unnorm_rots,
+    #     'logit_opacities': logit_opacities,
+    #     'log_scales': torch.tile(torch.log(torch.sqrt(mean3_sq_dist))[..., None], (1, 1)),
+    # }
+
+    #获取深度的渲染变量（#所谓的深度轮廓其实就是相机坐标系下的（深度值，1，深度的平方））
     depth_sil_rendervar = transformed_params2depthplussilhouette(params, curr_data['w2c'],
-                                                                 transformed_pts) #获取深度的渲染变量
+                                                                 transformed_pts) 
+    
     # 通过渲染器 Renderer 得到深度图和轮廓图，其中 depth_sil 包含了深度信息和轮廓信息。
     depth_sil, _, _, = Renderer(raster_settings=curr_data['cam'])(**depth_sil_rendervar)
     silhouette = depth_sil[1, :, :]
@@ -446,9 +460,9 @@ def add_new_gaussians(params, variables, curr_data, sil_thres, time_idx, mean_sq
 
     # Check for new foreground objects by using GT depth
     # 利用当前深度图和渲染后的深度图，通过 depth_error 计算深度误差，并生成深度非存在掩码 non_presence_depth_mask。
-    gt_depth = curr_data['depth'][0, :, :]
-    render_depth = depth_sil[0, :, :]
-    depth_error = torch.abs(gt_depth - render_depth) * (gt_depth > 0)
+    gt_depth = curr_data['depth'][0, :, :] #获取真值的深度图
+    render_depth = depth_sil[0, :, :] #获取渲染的深度图
+    depth_error = torch.abs(gt_depth - render_depth) * (gt_depth > 0) #计算深度误差
     non_presence_depth_mask = (render_depth > gt_depth) * (depth_error > 50*depth_error.median())
 
     # Determine non-presence mask
@@ -931,7 +945,7 @@ def rgbd_slam(config: dict):
                     selected_keyframes.append(len(keyframe_list)-1)
                 # Add current frame to the selected keyframes
                 selected_time_idx.append(time_idx)
-                selected_keyframes.append(-1)
+                selected_keyframes.append(-1) #向名为 selected_keyframes 的列表中添加了一个值为 -1 的元素。
                 # Print the selected keyframes
                 print(f"\nSelected Keyframes at Frame {time_idx}: {selected_time_idx}") #输出当前帧的时间索引以及被选中的关键帧的时间索引列表。
 
@@ -953,7 +967,7 @@ def rgbd_slam(config: dict):
 
                 # Randomly select a frame until current time step amongst keyframes
                 # 随机选择关键帧
-                rand_idx = np.random.randint(0, len(selected_keyframes)) # 随机选择一个关键帧。
+                rand_idx = np.random.randint(0, len(selected_keyframes)) # 随机选择一个关键帧。（前面好像插入的为-1？？？？）
                 selected_rand_keyframe_idx = selected_keyframes[rand_idx] #selected_keyframes 存储了当前帧与之前关键帧之间的选定关键帧。
 
                 # 确定当前迭代使用的数据
