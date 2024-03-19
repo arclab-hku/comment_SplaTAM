@@ -624,7 +624,7 @@ def rgbd_slam(config: dict):
     ) #定义一个类，这个类为数据集的内容？（是一个数据集对象）
     num_frames = dataset_config["num_frames"]
     if num_frames == -1:
-        num_frames = len(dataset)
+        num_frames = len(dataset) #如果为-1就采用数据集的长度
 
     # Init seperate dataloader for densification if required
     if seperate_densification_res: #如果致密化分辨率不一样，那就要额外获取致密化的数据集？？？
@@ -1007,7 +1007,7 @@ def rgbd_slam(config: dict):
                         if config['use_wandb']:
                             wandb_run.log({"Mapping/Number of Gaussians - Pruning": params['means3D'].shape[0],
                                            "Mapping/step": wandb_mapping_step})
-                    # Gaussian-Splatting's Gradient-based Densification
+                    # Gaussian-Splatting's Gradient-based Densification（进行密集化处理~）
                     if config['mapping']['use_gaussian_splatting_densification']: #参数文件为false
                         params, variables = densify(params, variables, optimizer, iter, config['mapping']['densify_dict']) #调用 densify 函数进行高斯分布的密集化。
                         if config['use_wandb']:
